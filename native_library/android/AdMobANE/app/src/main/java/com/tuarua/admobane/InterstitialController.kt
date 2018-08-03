@@ -1,5 +1,5 @@
 /*
- *  Copyright 2017 Tua Rua Ltd.
+ *  Copyright 2018 Tua Rua Ltd.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -16,7 +16,9 @@
 
 package com.tuarua.admobane
 
+import android.os.Bundle
 import com.adobe.fre.FREContext
+import com.google.ads.mediation.admob.AdMobAdapter
 import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.InterstitialAd
@@ -25,7 +27,8 @@ import com.tuarua.admobane.Position.*
 import com.tuarua.frekotlin.FreKotlinController
 
 @Suppress("JoinDeclarationAndAssignment")
-class InterstitialController(override var context: FREContext?) : FreKotlinController, AdListener() {
+class InterstitialController(override var context: FREContext?,
+                             private val isPersonalised: Boolean) : FreKotlinController, AdListener() {
 
     private var _adView: InterstitialAd? = null
     private var _showOnLoad:Boolean = true
@@ -33,7 +36,6 @@ class InterstitialController(override var context: FREContext?) : FreKotlinContr
 
     init {
     }
-
 
     fun load(unitId: String, deviceList: List<String>?, targeting: Targeting?, showOnLoad:Boolean) {
         _adView = InterstitialAd(this.context?.activity?.applicationContext)
@@ -43,11 +45,14 @@ class InterstitialController(override var context: FREContext?) : FreKotlinContr
         av.adUnitId = unitId
 
         val builder = AdRequest.Builder()
+
+        if (!isPersonalised){
+            val extras = Bundle()
+            extras.putString("npa", "1")
+            builder.addNetworkExtrasBundle(AdMobAdapter::class.java, extras)
+        }
+
         if (targeting != null) {
-            builder.setGender(targeting.gender)
-            if (targeting.birthday != null) {
-                builder.setBirthday(targeting.birthday)
-            }
             if (targeting.forChildren != null) {
                 val forChildren = targeting.forChildren
                 forChildren?.let { builder.tagForChildDirectedTreatment(it) }
@@ -67,32 +72,32 @@ class InterstitialController(override var context: FREContext?) : FreKotlinContr
 
     override fun onAdImpression() {
         super.onAdImpression()
-        sendEvent(Constants.ON_IMPRESSION, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
+        dispatchEvent(Constants.ON_IMPRESSION, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
     }
 
     override fun onAdLeftApplication() {
         super.onAdLeftApplication()
-        sendEvent(Constants.ON_LEFT_APPLICATION, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
+        dispatchEvent(Constants.ON_LEFT_APPLICATION, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
     }
 
     override fun onAdClicked() {
         super.onAdClicked()
-        sendEvent(Constants.ON_CLICKED, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
+        dispatchEvent(Constants.ON_CLICKED, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
     }
 
     override fun onAdFailedToLoad(p0: Int) {
         super.onAdFailedToLoad(p0)
-        sendEvent(Constants.ON_LOAD_FAILED, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal, p0)))
+        dispatchEvent(Constants.ON_LOAD_FAILED, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal, p0)))
     }
 
     override fun onAdClosed() {
         super.onAdClosed()
-        sendEvent(Constants.ON_CLOSED, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
+        dispatchEvent(Constants.ON_CLOSED, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
     }
 
     override fun onAdOpened() {
         super.onAdOpened()
-        sendEvent(Constants.ON_OPENED, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
+        dispatchEvent(Constants.ON_OPENED, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
     }
 
     override fun onAdLoaded() {
@@ -103,7 +108,7 @@ class InterstitialController(override var context: FREContext?) : FreKotlinContr
             av.show()
         }
 
-        sendEvent(Constants.ON_LOADED, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
+        dispatchEvent(Constants.ON_LOADED, gson.toJson(AdMobEvent(INTERSTITIAL.ordinal)))
     }
 
 

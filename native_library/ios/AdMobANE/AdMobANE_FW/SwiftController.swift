@@ -17,57 +17,118 @@
 import Foundation
 import CoreImage
 import GoogleMobileAds
+import PersonalizedAdConsent
 
-public class SwiftController: NSObject, FreSwiftMainController {
-    public var TAG: String? = "AdMobANE"
+public class SwiftController: NSObject {
+    public var TAG: String? = "SwiftController"
     public var context: FreContextSwift!
     public var functionsToSet: FREFunctionMap = [:]
     private var bannerController: BannerController?
     private var interstitialController: InterstitialController?
     private var rewardVideoController: RewardVideoController?
-    private var deviceArray: [String] = []
-
-    // Must have this function. It exposes the methods to our entry ObjC.
-    @objc public func getFunctions(prefix: String) -> [String] {
-
-        functionsToSet["\(prefix)isSupported"] = isSupported
-        functionsToSet["\(prefix)init"] = initController
-        functionsToSet["\(prefix)loadBanner"] = loadBanner
-        functionsToSet["\(prefix)clearBanner"] = clearBanner
-        functionsToSet["\(prefix)loadInterstitial"] = loadInterstitial
-        functionsToSet["\(prefix)showInterstitial"] = showInterstitial
-        functionsToSet["\(prefix)getBannerSizes"] = getBannerSizes
-        functionsToSet["\(prefix)setTestDevices"] = setTestDevices
-        functionsToSet["\(prefix)loadRewardVideo"] = loadRewardVideo
-        functionsToSet["\(prefix)showRewardVideo"] = showRewardVideo
-
-        var arr: [String] = []
-        for key in functionsToSet.keys {
-            arr.append(key)
+    
+    private var _consentController: ConsentController?
+    var consentController: ConsentController {
+        if _consentController == nil {
+            _consentController = ConsentController(context: context, deviceList: deviceArray)
         }
-        return arr
+        return _consentController!
     }
+    
+    private var deviceArray: [String] = []
 
     func isSupported(ctx: FREContext, argc: FREArgc, argv: FREArgv) -> FREObject? {
         return true.toFREObject()
     }
 
+    func requestConsentInfoUpdate(ctx: FREContext, argc: FREArgc, argv: FREArgv) -> FREObject? {
+        guard argc > 0,
+            let keys = [String](argv[0])
+            else {
+                return FreArgError(message: "requestConsentInfoUpdate").getError(#file, #line, #column)
+        }
+        consentController.requestConsentInfoUpdate(keys: keys)
+        return nil
+    }
+    
+    func resetConsent(ctx: FREContext, argc: FREArgc, argv: FREArgv) -> FREObject? {
+        consentController.resetConsent()
+        return nil
+    }
+    
+    func showConsentForm(ctx: FREContext, argc: FREArgc, argv: FREArgv) -> FREObject? {
+        guard argc > 3,
+            let url = String(argv[0]),
+            let privacyUrl = URL(safe: url),
+            let shouldOfferPersonalizedAds = Bool(argv[1]),
+            let shouldOfferNonPersonalizedAds = Bool(argv[2]),
+            let shouldOfferAdFree = Bool(argv[3]),
+            let rootViewController = UIApplication.shared.keyWindow?.rootViewController
+            else {
+                return FreArgError(message: "showConsentForm").getError(#file, #line, #column)
+        }
+        
+        consentController.showConsentForm(airVC: rootViewController, privacyUrl: privacyUrl,
+                                           shouldOfferPersonalizedAds: shouldOfferPersonalizedAds,
+                                           shouldOfferNonPersonalizedAds: shouldOfferNonPersonalizedAds,
+                                           shouldOfferAdFree: shouldOfferAdFree)
+        return nil
+    }
+    
+    func getIsTFUA(ctx: FREContext, argc: FREArgc, argv: FREArgv) -> FREObject? {
+        return consentController.getIsTFUA().toFREObject()
+    }
+    
+    func setIsTFUA(ctx: FREContext, argc: FREArgc, argv: FREArgv) -> FREObject? {
+        guard argc > 0
+            else {
+                return FreArgError(message: "setIsTFUA").getError(#file, #line, #column)
+        }
+        consentController.setIsTFUA(value: Bool(argv[0]) == true)
+        return nil
+        
+    }
+    
+    func setConsentStatus(ctx: FREContext, argc: FREArgc, argv: FREArgv) -> FREObject? {
+        guard argc > 0,
+        let status = Int(argv[0]),
+            let consentStatus = PACConsentStatus.init(rawValue: status)
+            else {
+                return FreArgError(message: "setConsentStatus").getError(#file, #line, #column)
+        }
+        consentController.setConsentStatus(value: consentStatus)
+        return nil
+    }
+    
+    func setDebugGeography(ctx: FREContext, argc: FREArgc, argv: FREArgv) -> FREObject? {
+        guard argc > 0,
+        let geography = Int(argv[0]),
+            let debugGeography = PACDebugGeography.init(rawValue: geography)
+            else {
+                return FreArgError(message: "setDebugGeography").getError(#file, #line, #column)
+        }
+        consentController.setDebugGeography(value: debugGeography)
+        return nil
+    }
+    
     func initController(ctx: FREContext, argc: FREArgc, argv: FREArgv) -> FREObject? {
-        guard argc > 2,
-              let key = String(argv[0]),
-              let volume = Float(argv[1]),
-              let muted = Bool(argv[2])
+        guard argc > 4,
+            let key = String(argv[0]),
+            let volume = Float(argv[1]),
+            let muted = Bool(argv[2]),
+            let isPersonalised = Bool(argv[4])
           else {
-            return ArgCountError(message: "initAdMob").getError(#file, #line, #column)
+            return FreArgError(message: "initAdMob").getError(#file, #line, #column)
         }
 
         GADMobileAds.configure(withApplicationID: key)
         GADMobileAds.sharedInstance().applicationVolume = volume
         GADMobileAds.sharedInstance().applicationMuted = muted
 
-        bannerController = BannerController.init(context: context)
-        interstitialController = InterstitialController.init(context: context)
-        rewardVideoController = RewardVideoController.init(context: context)
+        bannerController = BannerController(context: context, isPersonalised: isPersonalised)
+        interstitialController = InterstitialController(context: context, isPersonalised: isPersonalised)
+        rewardVideoController = RewardVideoController(context: context, isPersonalised: isPersonalised)
+        
         return nil
     }
 
@@ -81,10 +142,10 @@ public class SwiftController: NSObject, FreSwiftMainController {
               let hAlign = String(argv[5]),
               let vAlign = String(argv[6])
           else {
-            return ArgCountError(message: "loadBanner").getError(#file, #line, #column)
+            return FreArgError(message: "loadBanner").getError(#file, #line, #column)
         }
 
-        let targeting = Targeting.init(freObject: inFRE2)
+        let targeting = Targeting(freObject: inFRE2)
         if let rootViewController = UIApplication.shared.keyWindow?.rootViewController,
            let avc = bannerController {
             avc.load(airView: rootViewController.view, unitId: unitId, size: adSize, deviceList: deviceArray,
@@ -109,10 +170,10 @@ public class SwiftController: NSObject, FreSwiftMainController {
               let unitId = String(argv[0]),
               let showOnLoad = Bool(argv[2])
           else {
-            return ArgCountError(message: "loadInterstitial").getError(#file, #line, #column)
+            return FreArgError(message: "loadInterstitial").getError(#file, #line, #column)
         }
 
-        let targeting = Targeting.init(freObject: inFRE1)
+        let targeting = Targeting(freObject: inFRE1)
 
         if let rootViewController = UIApplication.shared.keyWindow?.rootViewController,
            let ivc = interstitialController {
@@ -136,10 +197,10 @@ public class SwiftController: NSObject, FreSwiftMainController {
             let unitId = String(argv[0]),
             let showOnLoad = Bool(argv[2])
             else {
-                return ArgCountError(message: "loadRewardVideo").getError(#file, #line, #column)
+                return FreArgError(message: "loadRewardVideo").getError(#file, #line, #column)
         }
         
-        let targeting = Targeting.init(freObject: inFRE1)
+        let targeting = Targeting(freObject: inFRE1)
         
         if let rootViewController = UIApplication.shared.keyWindow?.rootViewController,
             let rvc = rewardVideoController {
@@ -161,7 +222,7 @@ public class SwiftController: NSObject, FreSwiftMainController {
             return nil
         }
         do {
-            let arr = try FREArray.init(intArray: bc.getBannerSizes())
+            let arr = try FREArray(intArray: bc.getBannerSizes())
             return arr.rawValue
         } catch {
         }
@@ -170,16 +231,11 @@ public class SwiftController: NSObject, FreSwiftMainController {
 
     func setTestDevices(ctx: FREContext, argc: FREArgc, argv: FREArgv) -> FREObject? {
         guard argc > 0,
-              let inFRE0 = argv[0]
+              let deviceArray = [String](argv[0])
           else {
-            return ArgCountError(message: "setTestDevices").getError(#file, #line, #column)
+            return FreArgError(message: "setTestDevices").getError(#file, #line, #column)
         }
-        let deviceArrayAny: [Any?] = FREArray.init(inFRE0).value
-        for device in deviceArrayAny {
-            if let d = device as? String {
-                deviceArray.append(d)
-            }
-        }
+        self.deviceArray = deviceArray
         return nil
     }
 
@@ -190,21 +246,6 @@ public class SwiftController: NSObject, FreSwiftMainController {
         bannerController = nil
         interstitialController = nil
         rewardVideoController = nil
-    }
-
-    // Must have these 3 functions. It exposes the methods to our entry ObjC.
-    @objc public func callSwiftFunction(name: String, ctx: FREContext, argc: FREArgc, argv: FREArgv) -> FREObject? {
-        if let fm = functionsToSet[name] {
-            return fm(ctx, argc, argv)
-        }
-        return nil
-    }
-
-    @objc public func setFREContext(ctx: FREContext) {
-        self.context = FreContextSwift.init(freContext: ctx)
-    }
-  
-    @objc public func onLoad() {
     }
 
 }

@@ -1,5 +1,7 @@
 # Created by https://www.gitignore.io/api/xcode
 
+googleads-consent-sdk-ios/
+
 ### Xcode ###
 # Xcode
 #
@@ -8,6 +10,7 @@
 ## Build generated
 build/
 DerivedData/
+Index/
 
 ## Various settings
 *.pbxuser
@@ -84,6 +87,7 @@ fabric.properties
 
 Frameworks/*.bundle
 Frameworks/*.framework
+Frameworks_bak/
 Carthage/
 FreSwift_bak/
 Cartfile.resolved

@@ -1,5 +1,5 @@
 /*
- *  Copyright 2017 Tua Rua Ltd.
+ *  Copyright 2018 Tua Rua Ltd.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -33,6 +33,14 @@ public class AdMobANE implements FREExtension {
             ,"setTestDevices"
             ,"loadRewardVideo"
             ,"showRewardVideo"
+            ,"requestConsentInfoUpdate"
+            ,"resetConsent"
+            ,"showConsentForm"
+            ,"getIsTFUA"
+            ,"setIsTFUA"
+            ,"setDebugGeography"
+            ,"setConsentStatus"
+
     };
 
     @Override

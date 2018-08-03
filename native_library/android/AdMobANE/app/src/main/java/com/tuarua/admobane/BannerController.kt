@@ -1,5 +1,5 @@
 /*
- *  Copyright 2017 Tua Rua Ltd.
+ *  Copyright 2018 Tua Rua Ltd.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -27,9 +27,12 @@ import com.google.android.gms.ads.*
 import com.tuarua.frekotlin.FreKotlinController
 import com.google.gson.Gson
 import com.tuarua.admobane.Position.*
+import android.os.Bundle
+import com.google.ads.mediation.admob.AdMobAdapter
 
 @Suppress("JoinDeclarationAndAssignment")
-class BannerController(override var context: FREContext?, airView: ViewGroup) : FreKotlinController, AdListener() {
+class BannerController(override var context: FREContext?, airView: ViewGroup,
+                       private val isPersonalised: Boolean) : FreKotlinController, AdListener() {
 
     private var airView: ViewGroup? = airView
     private var _adView: AdView? = null
@@ -102,13 +105,16 @@ class BannerController(override var context: FREContext?, airView: ViewGroup) : 
         }
         container.layoutParams = lp
 
-
         val builder = AdRequest.Builder()
+
+        if (!isPersonalised) {
+            val extras = Bundle()
+            extras.putString("npa", "1")
+            builder.addNetworkExtrasBundle(AdMobAdapter::class.java, extras)
+        }
+
+
         if (targeting != null) {
-            builder.setGender(targeting.gender)
-            if (targeting.birthday != null) {
-                builder.setBirthday(targeting.birthday)
-            }
             if (targeting.forChildren != null) {
                 val forChildren = targeting.forChildren
                 forChildren?.let { builder.tagForChildDirectedTreatment(it) }
@@ -134,32 +140,32 @@ class BannerController(override var context: FREContext?, airView: ViewGroup) : 
 
     override fun onAdImpression() {
         super.onAdImpression()
-        sendEvent(Constants.ON_IMPRESSION, gson.toJson(AdMobEvent(BANNER.ordinal)))
+        dispatchEvent(Constants.ON_IMPRESSION, gson.toJson(AdMobEvent(BANNER.ordinal)))
     }
 
     override fun onAdLeftApplication() {
         super.onAdLeftApplication()
-        sendEvent(Constants.ON_LEFT_APPLICATION, gson.toJson(AdMobEvent(BANNER.ordinal)))
+        dispatchEvent(Constants.ON_LEFT_APPLICATION, gson.toJson(AdMobEvent(BANNER.ordinal)))
     }
 
     override fun onAdClicked() {
         super.onAdClicked()
-        sendEvent(Constants.ON_CLICKED, gson.toJson(AdMobEvent(BANNER.ordinal)))
+        dispatchEvent(Constants.ON_CLICKED, gson.toJson(AdMobEvent(BANNER.ordinal)))
     }
 
     override fun onAdFailedToLoad(p0: Int) {
         super.onAdFailedToLoad(p0)
-        sendEvent(Constants.ON_LOAD_FAILED, gson.toJson(AdMobEvent(BANNER.ordinal, p0)))
+        dispatchEvent(Constants.ON_LOAD_FAILED, gson.toJson(AdMobEvent(BANNER.ordinal, p0)))
     }
 
     override fun onAdClosed() {
         super.onAdClosed()
-        sendEvent(Constants.ON_CLOSED, gson.toJson(AdMobEvent(BANNER.ordinal)))
+        dispatchEvent(Constants.ON_CLOSED, gson.toJson(AdMobEvent(BANNER.ordinal)))
     }
 
     override fun onAdOpened() {
         super.onAdOpened()
-        sendEvent(Constants.ON_OPENED, gson.toJson(AdMobEvent(BANNER.ordinal)))
+        dispatchEvent(Constants.ON_OPENED, gson.toJson(AdMobEvent(BANNER.ordinal)))
     }
 
     override fun onAdLoaded() {
@@ -172,7 +178,7 @@ class BannerController(override var context: FREContext?, airView: ViewGroup) : 
             airView?.addView(container)
         }
 
-        sendEvent(Constants.ON_LOADED, gson.toJson(AdMobEvent(BANNER.ordinal)))
+        dispatchEvent(Constants.ON_LOADED, gson.toJson(AdMobEvent(BANNER.ordinal)))
 
     }
 

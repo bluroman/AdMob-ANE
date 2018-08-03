@@ -1,5 +1,5 @@
 /*
- *  Copyright 2017 Tua Rua Ltd.
+ *  Copyright 2018 Tua Rua Ltd.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -18,3 +18,8 @@ package com.tuarua.admobane
 data class AdMobEvent(val position: Int, val errorCode: Int = 0)
 data class AdMobEventWithReward(val position: Int, val errorCode: Int = 0,
                                 val amount: Int = 0, val type: String? = null)
+data class ConsentInfoEvent(val consentStatus:Int,
+                        val isRequestLocationInEEAOrUnknown:Boolean)
+
+data class ConsentDismissEvent(val consentStatus:Int,
+                        val userPrefersAdFree:Boolean)

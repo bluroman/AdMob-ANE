@@ -25,9 +25,7 @@ public class AdMobANE extends EventDispatcher {
         initiate();
     }
 
-    /**
-     * This method is omitted from the output. * * @private
-     */
+    /** @private */
     private function initiate():void {
         trace("[" + NAME + "] Initalizing ANE...");
         try {
@@ -46,9 +44,7 @@ public class AdMobANE extends EventDispatcher {
         }
     }
 
-    /**
-     * This method is omitted from the output. * * @private
-     */
+    /** @private */
     private function gotEvent(event:StatusEvent):void {
         switch (event.level) {
             case TRACE:
@@ -63,8 +59,10 @@ public class AdMobANE extends EventDispatcher {
             case AdMobEvent.ON_IMPRESSION:
             case AdMobEvent.ON_LEFT_APPLICATION:
             case AdMobEvent.ON_VIDEO_STARTED:
+            case AdMobEvent.ON_VIDEO_COMPLETE:
+            case AdMobEvent.ON_CONSENT_INFO_UPDATE:
+            case AdMobEvent.ON_CONSENT_FORM_DISMISSED:
                 try {
-                    //trace("event.code", event.code);
                     argsAsJSON = JSON.parse(event.code);
                     dispatchEvent(new AdMobEvent(event.level, argsAsJSON));
                 } catch (e:Error) {
@@ -74,27 +72,65 @@ public class AdMobANE extends EventDispatcher {
         }
     }
 
+
+    /**
+     * Resets consent information to default state and clears ad providers.
+     */
+    public function resetConsent():void {
+        var theRet:* = ctx.call("resetConsent");
+        if (theRet is ANEError) throw theRet as ANEError;
+    }
+
+    /**
+     * Presents the full screen consent form above AIR stage.
+     *
+     * @param privacyUrl
+     * @param shouldOfferPersonalizedAds Indicates whether the consent form should show a personalized ad option. Defaults to true.
+     * @param shouldOfferNonPersonalizedAds Indicates whether the consent form should show a non-personalized ad option. Defaults to true.
+     * @param shouldOfferAdFree Indicates whether the consent form should show an ad-free app option. Defaults to false.
+     */
+    public function showConsentForm(privacyUrl:String,
+                                    shouldOfferPersonalizedAds:Boolean = true,
+                                    shouldOfferNonPersonalizedAds:Boolean = true,
+                                    shouldOfferAdFree:Boolean = false):void {
+        var theRet:* = ctx.call("showConsentForm", privacyUrl,
+                shouldOfferPersonalizedAds,
+                shouldOfferNonPersonalizedAds,
+                shouldOfferAdFree);
+        if (theRet is ANEError) throw theRet as ANEError;
+    }
+
+    /**
+     * Requests consent information update for the provided publisher identifiers. All publisher
+     * identifiers used in the application should be specified in this call. Consent status is reset to
+     * unknown when the ad provider list changes.
+     * @param key -
+     *
+     */
+    public function requestConsentInfoUpdate(key:Vector.<String>):void {
+        var theRet:* = ctx.call("requestConsentInfoUpdate", key);
+        if (theRet is ANEError) throw theRet as ANEError;
+    }
+
     /**
      *
      * @param key - iOS only. This is your AdMob API key
      * @param volume - Sets the volume of Video Ads
      * @param muted - Sets whether Video Ads are muted
      * @param scaleFactor - Used on Android only
+     * @param isPersonalised - Set based on user consent for GDPR
      * @return
      *
      */
-    public function init(key:String, volume:Number = 1.0, muted:Boolean = false, scaleFactor:Number = 1.0):Boolean {
-        var theRet:* = ctx.call("init", key, volume, muted, scaleFactor);
-        if (theRet is ANEError) {
-            throw theRet as ANEError;
-        }
+    public function init(key:String, volume:Number = 1.0, muted:Boolean = false, scaleFactor:Number = 1.0,
+                         isPersonalised:Boolean = true):Boolean {
+        var theRet:* = ctx.call("init", key, volume, muted, scaleFactor, isPersonalised);
+        if (theRet is ANEError) throw theRet as ANEError;
         _isInited = theRet as Boolean;
         return _isInited;
     }
 
-    /**
-     * This method is omitted from the output. * * @private
-     */
+    /** @private */
     private function safetyCheck():Boolean {
         if (!_isInited) {
             trace("You need to init first");
@@ -103,59 +139,30 @@ public class AdMobANE extends EventDispatcher {
         return _isSupported;
     }
 
-    /**
-     *
-     * @return
-     *
-     */
     public function get banner():Banner {
         return _banner;
     }
 
-    /**
-     *
-     * @return
-     *
-     */
     public function get interstitial():Interstitial {
         return _interstitial;
     }
 
-    /**
-     *
-     * @return
-     *
-     */
     public function get rewardVideo():RewardVideo {
         return _rewardVideo;
     }
 
-    /**
-     *
-     * @param value
-     *
-     */
+    /** Test ads will be returned for devices with device IDs specified in this array. */
     public function set testDevices(value:Vector.<String>):void {
         _testDevices = value;
         var theRet:* = ctx.call("setTestDevices", _testDevices);
-        if (theRet is ANEError) {
-            throw theRet as ANEError;
-        }
+        if (theRet is ANEError) throw theRet as ANEError;
     }
 
-    /**
-     *
-     * @return
-     *
-     */
     public function get testDevices():Vector.<String> {
         return _testDevices;
     }
 
-    /**
-     *
-     *
-     */
+    /** disposes the ANE*/
     public function dispose():void {
         if (!ctx) {
             trace("[" + NAME + "] Error. ANE Already in a disposed or failed state...");
@@ -167,7 +174,29 @@ public class AdMobANE extends EventDispatcher {
         ctx = null;
     }
 
+    /** If a publisher is aware that the user is under the age of consent,
+     * all ad requests must set TFUA (Tag For Users under the Age of Consent in Europe). */
+    public function get isTaggedForUnderAgeOfConsent():Boolean {
+        var theRet:* = ctx.call("getIsTFUA");
+        if (theRet is ANEError) throw theRet as ANEError;
+        var _isTaggedForUnderAgeOfConsent:Boolean = theRet as Boolean;
+        return _isTaggedForUnderAgeOfConsent;
+    }
 
+    public function set isTaggedForUnderAgeOfConsent(value:Boolean):void {
+        var theRet:* = ctx.call("setIsTFUA", value);
+        if (theRet is ANEError) throw theRet as ANEError;
+    }
 
+    /** Debug geography. Used for debug devices only.*/
+    public function set consentStatus(value:int):void {
+        var theRet:* = ctx.call("setConsentStatus", value);
+        if (theRet is ANEError) throw theRet as ANEError;
+    }
+
+    public function set debugGeography(value:int):void {
+        var theRet:* = ctx.call("setDebugGeography", value);
+        if (theRet is ANEError) throw theRet as ANEError;
+    }
 }
 }

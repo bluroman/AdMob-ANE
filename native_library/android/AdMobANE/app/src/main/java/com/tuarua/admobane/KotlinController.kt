@@ -1,5 +1,5 @@
 /*
- *  Copyright 2017 Tua Rua Ltd.
+ *  Copyright 2018 Tua Rua Ltd.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -16,11 +16,13 @@
 package com.tuarua.admobane
 
 import android.view.ViewGroup
-import com.adobe.fre.FREArray
 import com.adobe.fre.FREContext
 import com.adobe.fre.FREObject
+import com.google.ads.consent.ConsentStatus
+import com.google.ads.consent.DebugGeography
 import com.google.android.gms.ads.MobileAds
 import com.tuarua.frekotlin.*
+import java.net.URL
 
 @Suppress("unused", "UNUSED_PARAMETER", "UNCHECKED_CAST")
 class KotlinController : FreKotlinMainController {
@@ -32,66 +34,130 @@ class KotlinController : FreKotlinMainController {
     private var bannerController: BannerController? = null
     private var interstitialController: InterstitialController? = null
     private var rewardController: RewardedVideoController? = null
+    private var consentController: ConsentController? = null
+        get() {
+            if (field != null) return field
+            return ConsentController(context)
+        }
 
     fun isSupported(ctx: FREContext, argv: FREArgv): FREObject? {
         return true.toFREObject()
     }
 
-    fun init(ctx: FREContext, argv: FREArgv): FREObject? {
-        argv.takeIf { argv.size > 3 } ?: return ArgCountException().getError(Thread.currentThread().stackTrace)
-        try {
-            val key = String(argv[0])
-            val volume = Float(argv[1])
-            val muted = Boolean(argv[2])
-            scaleFactor = Float(argv[3]) ?: 1.0F
-            airView = context?.activity?.findViewById(android.R.id.content) as ViewGroup
-            airView = airView.getChildAt(0) as ViewGroup
-            MobileAds.initialize(ctx.activity?.applicationContext, key)
-            volume?.let { MobileAds.setAppVolume(it) }
-            muted?.let { MobileAds.setAppMuted(it) }
-            bannerController = BannerController(_context, airView)
-            interstitialController = InterstitialController(ctx)
-            rewardController = RewardedVideoController(ctx)
-        } catch (e: FreException) {
-            return e.getError(Thread.currentThread().stackTrace)
-        } catch (e: Exception) {
-            return FreException(e).getError(Thread.currentThread().stackTrace)
+    // https://developers.google.com/admob/android/eu-consent
+
+    fun requestConsentInfoUpdate(ctx: FREContext, argv: FREArgv): FREObject? {
+        argv.takeIf { argv.size > 0 } ?: return FreArgException("requestConsentInfoUpdate")
+        val keys = List<String>(argv[0])
+        if (keys.isEmpty()) return FreConversionException("You must supply at least 1 appId")
+
+        // consentController = ConsentController(ctx)
+        consentController?.requestConsentInfoUpdate(keys)
+        return null
+    }
+
+    fun resetConsent(ctx: FREContext, argv: FREArgv): FREObject? {
+        consentController?.resetConsent()
+        return null
+    }
+
+    fun showConsentForm(ctx: FREContext, argv: FREArgv): FREObject? {
+        argv.takeIf { argv.size > 3 } ?: return FreArgException("showConsentForm")
+        val url = String(argv[0]) ?: return FreConversionException("url")
+        val privacyUrl = URL(url)
+        val shouldOfferPersonalizedAds = Boolean(argv[1]) ?: true
+        val shouldOfferNonPersonalizedAds = Boolean(argv[2]) ?: true
+        val shouldOfferAdFree = Boolean(argv[3]) ?: false
+
+        consentController?.showConsentForm(privacyUrl,
+                shouldOfferPersonalizedAds,
+                shouldOfferNonPersonalizedAds,
+                shouldOfferAdFree)
+
+        return null
+    }
+
+    fun getIsTFUA(ctx: FREContext, argv: FREArgv): FREObject? {
+        return consentController?.getIsTFUA()?.toFREObject()
+    }
+
+    fun setIsTFUA(ctx: FREContext, argv: FREArgv): FREObject? {
+        argv.takeIf { argv.size > 0 } ?: return FreArgException("setIsTFUA")
+        consentController?.setIsTFUA(Boolean(argv[0]) == true)
+        return null
+    }
+
+
+    fun setConsentStatus(ctx: FREContext, argv: FREArgv): FREObject? {
+        argv.takeIf { argv.size > 0 } ?: return FreArgException("setConsentStatus")
+        val status = Int(argv[0]) ?: 0
+
+        val consentStatus:ConsentStatus = when (status) {
+            1 -> ConsentStatus.NON_PERSONALIZED
+            2 -> ConsentStatus.PERSONALIZED
+            else -> ConsentStatus.UNKNOWN
         }
+        consentController?.setConsentStatus(consentStatus)
+
+        return null
+    }
+
+    fun setDebugGeography(ctx: FREContext, argv: FREArgv): FREObject? {
+        argv.takeIf { argv.size > 0 } ?: return FreArgException("setDebugGeography")
+        val geography = Int(argv[0]) ?: 0
+        trace("setting geography to ", geography)
+        val debugGeography:DebugGeography = when (geography) {
+            1 -> DebugGeography.DEBUG_GEOGRAPHY_EEA
+            2 -> DebugGeography.DEBUG_GEOGRAPHY_NOT_EEA
+            else -> DebugGeography.DEBUG_GEOGRAPHY_DISABLED
+        }
+
+        trace("setting debugGeography to ", debugGeography.ordinal)
+
+        consentController?.setDebugGeography(debugGeography)
+
+        return null
+    }
+
+    fun init(ctx: FREContext, argv: FREArgv): FREObject? {
+        argv.takeIf { argv.size > 4 } ?: return FreArgException("init")
+        val key = String(argv[0])
+        val volume = Float(argv[1])
+        val muted = Boolean(argv[2])
+        val isPersonalised = Boolean(argv[4]) == true
+        scaleFactor = Float(argv[3]) ?: 1.0F
+        airView = context?.activity?.findViewById(android.R.id.content) as ViewGroup
+        airView = airView.getChildAt(0) as ViewGroup
+        MobileAds.initialize(ctx.activity?.applicationContext, key)
+        volume?.let { MobileAds.setAppVolume(it) }
+        muted?.let { MobileAds.setAppMuted(it) }
+        bannerController = BannerController(_context, airView, isPersonalised)
+        interstitialController = InterstitialController(ctx, isPersonalised)
+        rewardController = RewardedVideoController(ctx, isPersonalised)
         return true.toFREObject()
     }
 
     fun setTestDevices(ctx: FREContext, argv: FREArgv): FREObject? {
-        argv.takeIf { argv.size > 0 } ?: return ArgCountException().getError(Thread.currentThread().stackTrace)
-        try {
-            val deviceArray: FREArray? = FREArray(argv[0])
-            deviceList = List(deviceArray)
-        } catch (e: FreException) {
-            return e.getError(Thread.currentThread().stackTrace)
-        } catch (e: Exception) {
-            return FreException(e).getError(Thread.currentThread().stackTrace)
-        }
+        argv.takeIf { argv.size > 0 } ?: return FreArgException("setTestDevices")
+        val deviceArray = FREArray(argv[0])
+        deviceList = List(deviceArray)
         return null
     }
 
     fun loadBanner(ctx: FREContext, argv: FREArgv): FREObject? {
-        argv.takeIf { argv.size > 6 } ?: return ArgCountException().getError(Thread.currentThread().stackTrace)
-        try {
-            val unitId = String(argv[0])
-            val adSize = Int(argv[1])
-            val targeting: Targeting? = Targeting(argv[2])
-            val x = Float(argv[3])
-            val y = Float(argv[4])
-            val hAlign = String(argv[5])
-            val vAlign = String(argv[6])
+        argv.takeIf { argv.size > 6 } ?: return FreArgException("loadBanner")
+        val unitId = String(argv[0]) ?: return FreConversionException("unitId")
+        val adSize = Int(argv[1]) ?: return FreConversionException("adSize")
+        val targeting = Targeting(argv[2])
+        val x = Float(argv[3]) ?: return FreConversionException("x")
+        val y = Float(argv[4]) ?: return FreConversionException("y")
+        val hAlign = String(argv[5]) ?: return FreConversionException("hAlign")
+        val vAlign = String(argv[6]) ?: return FreConversionException("vAlign")
 
-            if (unitId != null && adSize != null && x != null && y != null && hAlign != null && vAlign != null) {
-                bannerController?.load(unitId, adSize, deviceList, targeting, x * scaleFactor, y * scaleFactor, hAlign, vAlign)
-            }
-        } catch (e: FreException) {
-            return e.getError(Thread.currentThread().stackTrace)
-        } catch (e: Exception) {
-            return FreException(e).getError(Thread.currentThread().stackTrace)
-        }
+        bannerController?.load(unitId, adSize, deviceList,
+                targeting,
+                x * scaleFactor,
+                y * scaleFactor, hAlign, vAlign)
         return null
     }
 
@@ -111,19 +177,11 @@ class KotlinController : FreKotlinMainController {
     }
 
     fun loadInterstitial(ctx: FREContext, argv: FREArgv): FREObject? {
-        argv.takeIf { argv.size > 2 } ?: return ArgCountException().getError(Thread.currentThread().stackTrace)
-        try {
-            val unitId = String(argv[0])
-            val targeting: Targeting? = Targeting(argv[1])
-            val showOnLoad = Boolean(argv[2])
-            if (unitId != null && showOnLoad != null) {
-                interstitialController?.load(unitId, deviceList, targeting, showOnLoad)
-            }
-        } catch (e: FreException) {
-            return e.getError(Thread.currentThread().stackTrace)
-        } catch (e: Exception) {
-            return FreException(e).getError(Thread.currentThread().stackTrace)
-        }
+        argv.takeIf { argv.size > 2 } ?: return FreArgException("loadInterstitial")
+        val unitId = String(argv[0]) ?: return FreConversionException("unitId")
+        val targeting = Targeting(argv[1])
+        val showOnLoad = Boolean(argv[2]) == true
+        interstitialController?.load(unitId, deviceList, targeting, showOnLoad)
         return null
     }
 
@@ -133,20 +191,11 @@ class KotlinController : FreKotlinMainController {
     }
 
     fun loadRewardVideo(ctx: FREContext, argv: FREArgv): FREObject? {
-        argv.takeIf { argv.size > 2 } ?: return ArgCountException().getError(Thread.currentThread().stackTrace)
-        try {
-            val unitId = String(argv[0])
-            val targeting: Targeting? = Targeting(argv[1])
-            val showOnLoad = Boolean(argv[2])
-            if (unitId != null && showOnLoad != null) {
-                rewardController?.load(unitId, deviceList, targeting, showOnLoad)
-            }
-        } catch (e: FreException) {
-            return e.getError(Thread.currentThread().stackTrace)
-        } catch (e: Exception) {
-            return FreException(e).getError(Thread.currentThread().stackTrace)
-        }
-
+        argv.takeIf { argv.size > 2 } ?: return FreArgException("loadRewardVideo")
+        val unitId = String(argv[0]) ?: return FreConversionException("unitId")
+        val targeting = Targeting(argv[1])
+        val showOnLoad = Boolean(argv[2]) == true
+        rewardController?.load(unitId, deviceList, targeting, showOnLoad)
         return null
     }
 

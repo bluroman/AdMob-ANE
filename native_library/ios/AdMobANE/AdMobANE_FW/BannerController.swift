@@ -28,6 +28,7 @@ class BannerController: UIViewController, FreSwiftController, GADBannerViewDeleg
     private var _vAlign: String = "bottom"
     private var _x: CGFloat = CGFloat.init()
     private var _y: CGFloat = CGFloat.init()
+    private var isPersonalised: Bool = true
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -38,9 +39,10 @@ class BannerController: UIViewController, FreSwiftController, GADBannerViewDeleg
             name: Notification.Name.UIDeviceOrientationDidChange, object: nil)
     }
     
-    convenience init(context: FreContextSwift) {
+    convenience init(context: FreContextSwift, isPersonalised: Bool) {
         self.init()
         self.context = context
+        self.isPersonalised = isPersonalised
     }
 
     @objc private func orientationDidChange(notification: Notification) {
@@ -141,6 +143,12 @@ class BannerController: UIViewController, FreSwiftController, GADBannerViewDeleg
         position()
 
         let request = GADRequest()
+        if !isPersonalised {
+            let extras = GADExtras()
+            extras.additionalParameters = ["npa": "1"]
+            request.register(extras)
+        }
+        
         if deviceList != nil {
             request.testDevices = deviceList!
         }
@@ -148,10 +156,6 @@ class BannerController: UIViewController, FreSwiftController, GADBannerViewDeleg
         if let t = targeting {
             if let fc = t.forChildren {
                 request.tag(forChildDirectedTreatment: fc)
-            }
-            request.gender = t.gender
-            if let birthday = t.birthday {
-                request.birthday = birthday
             }
             if let contentUrl = t.contentUrl {
                 request.contentURL = contentUrl
@@ -189,7 +193,7 @@ class BannerController: UIViewController, FreSwiftController, GADBannerViewDeleg
         var props: [String: Any] = Dictionary()
         props["position"] = Position.banner.rawValue
         let json = JSON(props)
-        sendEvent(name: Constants.ON_LOADED, value: json.description)
+        dispatchEvent(name: Constants.ON_LOADED, value: json.description)
         
         //handle smart banners separately
         guard let adV = adView, adV.adSize.size.width < 0.1 else {
@@ -204,19 +208,18 @@ class BannerController: UIViewController, FreSwiftController, GADBannerViewDeleg
     }
 
     func adView(_ bannerView: GADBannerView, didFailToReceiveAdWithError error: GADRequestError) {
-        //trace("adView:didFailToReceiveAdWithError: \(error.localizedDescription)")
         var props: [String: Any] = Dictionary()
         props["position"] = Position.banner.rawValue
         props["errorCode"] = error.code
         let json = JSON(props)
-        sendEvent(name: Constants.ON_LOAD_FAILED, value: json.description)
+        dispatchEvent(name: Constants.ON_LOAD_FAILED, value: json.description)
     }
     
     func adViewWillLeaveApplication(_ bannerView: GADBannerView) {
         var props: [String: Any] = Dictionary()
         props["position"] = Position.banner.rawValue
         let json = JSON(props)
-        sendEvent(name: Constants.ON_LEFT_APPLICATION, value: json.description)
+        dispatchEvent(name: Constants.ON_LEFT_APPLICATION, value: json.description)
     }
 
     override func didReceiveMemoryWarning() {
